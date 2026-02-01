@@ -1,69 +1,340 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<title>EEG Fatigue Dashboard</title>
+<meta charset="UTF-8">
+<title>EEG Fatigue Monitoring Dashboard</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+  body {
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    color: #e2e8f0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0;
+    padding: 20px;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  
+  .container {
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  
+  h1 {
+    font-size: 2.5rem;
+    font-weight: 700;
+    background: linear-gradient(45deg, #3b82f6, #8b5cf6);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 30px;
+    text-shadow: 0 0 30px rgba(59, 130, 246, 0.5);
+  }
+  
+  .status-section {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 30px;
+    margin-bottom: 40px;
+    flex-wrap: wrap;
+  }
+  
+  h2 {
+    text-align: center;
+    font-size: 2rem;
+    margin-bottom: 20px;
+    color: #e2e8f0;
+  }
+  
+  #traffic {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    box-shadow: 
+      0 0 20px rgba(0,0,0,0.5),
+      inset 0 0 20px rgba(255,255,255,0.1);
+    transition: all 0.3s ease;
+    position: relative;
+    border: 4px solid rgba(255,255,255,0.2);
+  }
+  
+  #traffic::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 60px;
+    height: 60px;
+    background: rgba(255,255,255,0.3);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    transition: all 0.3s ease;
+  }
+  
+  #status {
+    font-size: 2.2rem;
+    font-weight: 800;
+    min-width: 300px;
+    text-align: center;
+    padding: 20px 30px;
+    border-radius: 20px;
+    background: rgba(15, 23, 42, 0.8);
+    backdrop-filter: blur(20px);
+    border: 2px solid rgba(255,255,255,0.1);
+    box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+    transition: all 0.3s ease;
+  }
+  
+  .alert {
+    animation: pulseAlert 0.8s infinite;
+    box-shadow: 0 0 50px rgba(255,0,0,0.6);
+    transform: scale(1.05);
+  }
+  
+  @keyframes pulseAlert {
+    0%, 100% { 
+      box-shadow: 0 0 50px rgba(255,0,0,0.6);
+      transform: scale(1.05);
+    }
+    50% { 
+      box-shadow: 0 0 70px rgba(255,0,0,0.9);
+      transform: scale(1.1);
+    }
+  }
+  
+  .charts-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 30px;
+    margin-bottom: 40px;
+  }
+  
+  canvas {
+    background: rgba(15, 23, 42, 0.9);
+    border-radius: 20px;
+    padding: 20px;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.1);
+    max-height: 400px;
+  }
+  
+  .summary-section {
+    background: rgba(30, 41, 59, 0.8);
+    backdrop-filter: blur(20px);
+    border-radius: 20px;
+    padding: 30px;
+    border: 2px solid rgba(255,255,255,0.1);
+    box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+  }
+  
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin-top: 20px;
+  }
+  
+  .status-card {
+    background: rgba(15, 23, 42, 0.7);
+    padding: 20px;
+    border-radius: 15px;
+    text-align: center;
+    transition: all 0.3s ease;
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  
+  .status-card.active { border-color: #10b981; box-shadow: 0 0 20px rgba(16, 185, 129, 0.4); }
+  .status-card.drowsy1 { border-color: #f59e0b; box-shadow: 0 0 20px rgba(245, 158, 11, 0.4); }
+  .status-card.drowsy2 { border-color: #f97316; box-shadow: 0 0 20px rgba(249, 115, 22, 0.4); }
+  .status-card.unconscious { border-color: #ef4444; box-shadow: 0 0 20px rgba(239, 68, 68, 0.6); }
+  
+  .status-card h4 {
+    margin: 0 0 10px 0;
+    font-size: 1.1rem;
+    opacity: 0.8;
+  }
+  
+  .status-card .percentage {
+    font-size: 2.5rem;
+    font-weight: 800;
+    line-height: 1;
+  }
+
+  @media (max-width: 768px) {
+    .charts-grid {
+      grid-template-columns: 1fr;
+    }
+    .status-section {
+      flex-direction: column;
+      gap: 20px;
+    }
+  }
+</style>
 </head>
 
-<body style="background:#020617;color:white;text-align:center">
+<body>
+<div class="container">
+  <h2>EEG Fatigue Monitoring Dashboard</h2>
+  
+  <div class="status-section">
+    <div id="traffic">🔄</div>
+    <h1 id="status">Waiting for data...</h1>
+  </div>
 
-<h1>EEG Fatigue Monitoring</h1>
-<h2 id="status">Waiting...</h2>
-<div id="traffic" style="width:70px;height:70px;border-radius:50%;margin:auto"></div>
+  <!-- 🔊 ALERT SOUND -->
+  <audio id="alertSound" preload="auto">
+    <source src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg" type="audio/ogg">
+  </audio>
 
-<audio id="alarm">
-  <source src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg">
-</audio>
+  <!-- 📊 CHARTS -->
+  <div class="charts-grid">
+    <canvas id="bandChart"></canvas>
+    <canvas id="fatigueChart"></canvas>
+  </div>
 
-<canvas id="bands"></canvas>
-<canvas id="fatigue"></canvas>
+  <!-- 📈 SUMMARY -->
+  <div class="summary-section">
+    <h3>Fatigue Summary (%)</h3>
+    <div class="summary-grid" id="summary"></div>
+  </div>
+</div>
 
 <script>
-const API="https://YOUR-BACKEND.onrender.com/latest";
+const API_URL = "https://ml-model-backend-j6co.onrender.com/latest";  // ✅ REAL API
 
-const bandChart=new Chart(bands,{
- type:'line',
- data:{labels:[],datasets:[
-  {label:'Alpha',data:[],borderColor:'cyan'},
-  {label:'Beta',data:[],borderColor:'yellow'},
-  {label:'Gamma',data:[],borderColor:'orange'},
-  {label:'Delta',data:[],borderColor:'lime'}
- ]}
-});
-
-const fatChart=new Chart(fatigue,{
- type:'line',
- data:{labels:[],datasets:[{label:'Fatigue',data:[],borderColor:'red'}]},
- options:{scales:{y:{min:0,max:3}}}
-});
-
-setInterval(()=>{
- fetch(API).then(r=>r.json()).then(d=>{
-  if(!d.time)return;
-
-  bandChart.data.labels.push("");
-  bandChart.data.datasets[0].data.push(d.alpha_rms);
-  bandChart.data.datasets[1].data.push(d.beta_rms);
-  bandChart.data.datasets[2].data.push(d.gamma_rms);
-  bandChart.data.datasets[3].data.push(d.delta_rms);
-  bandChart.update();
-
-  fatChart.data.labels.push("");
-  fatChart.data.datasets[0].data.push(d.prediction);
-  fatChart.update();
-
-  const t=["ACTIVE","INITIAL","HEAVY","UNCONSCIOUS"];
-  const c=["green","yellow","orange","red"];
-
-  status.innerText="STATUS: "+t[d.prediction];
-  traffic.style.background=c[d.prediction];
-
-  if(d.prediction==3){
-    alarm.play();
-    if(navigator.vibrate) navigator.vibrate([500,300,500]);
+/* Charts */
+const bandChart = new Chart(document.getElementById("bandChart"), {
+  type: "line",
+  data: {
+    labels: [],
+    datasets: [
+      { label: "Alpha RMS", data: [], borderColor: "cyan", backgroundColor: "rgba(0,255,255,0.1)", tension: 0.4 },
+      { label: "Beta RMS", data: [], borderColor: "yellow", backgroundColor: "rgba(255,255,0,0.1)", tension: 0.4 },
+      { label: "Gamma RMS", data: [], borderColor: "orange", backgroundColor: "rgba(255,165,0,0.1)", tension: 0.4 },
+      { label: "Delta RMS", data: [], borderColor: "lime", backgroundColor: "rgba(0,255,0,0.1)", tension: 0.4 }
+    ]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    scales: {
+      y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.1)' } },
+      x: { grid: { color: 'rgba(255,255,255,0.1)' } }
+    },
+    plugins: { legend: { labels: { color: '#e2e8f0' } } }
   }
- });
-},1000);
+});
+
+const fatigueChart = new Chart(document.getElementById("fatigueChart"), {
+  type: "line",
+  data: {
+    labels: [],
+    datasets: [
+      { label: "Fatigue Level", data: [], borderColor: "red", backgroundColor: "rgba(255,0,0,0.2)", tension: 0.4 }
+    ]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    scales: {
+      y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.1)' } },
+      x: { grid: { color: 'rgba(255,255,255,0.1)' } }
+    },
+    plugins: { legend: { labels: { color: '#e2e8f0' } } }
+  }
+});
+
+/* History */
+let history = {0:0, 1:0, 2:0, 3:0};
+let total = 0;
+
+function updateDashboard() {
+  fetch(API_URL)
+    .then(res => res.json())
+    .then(d => {
+      if (!d.time) return;
+
+      /* Update band graph - keep last 20 points */
+      bandChart.data.labels.push("");
+      bandChart.data.datasets[0].data.push(d.alpha_rms);
+      bandChart.data.datasets[1].data.push(d.beta_rms);
+      bandChart.data.datasets[2].data.push(d.gamma_rms);
+      bandChart.data.datasets[3].data.push(d.delta_rms);
+      
+      if (bandChart.data.labels.length > 20) {
+        bandChart.data.labels.shift();
+        bandChart.data.datasets.forEach(dataset => dataset.data.shift());
+      }
+      bandChart.update('none');
+
+      /* Update fatigue graph */
+      fatigueChart.data.labels.push("");
+      fatigueChart.data.datasets[0].data.push(d.prediction * 25);
+      
+      if (fatigueChart.data.labels.length > 20) {
+        fatigueChart.data.labels.shift();
+        fatigueChart.data.datasets.forEach(dataset => dataset.data.shift());
+      }
+      fatigueChart.update('none');
+
+      /* Status + Traffic */
+      const text = ["ACTIVE", "INITIAL DROWSY", "HEAVY DROWSY", "UNCONSCIOUS"];
+      const colors = ["#10b981", "#f59e0b", "#f97316", "#ef4444"];
+
+      document.getElementById("status").innerHTML =
+        `<span style="color:${colors[d.prediction]}">
+          FATIGUE STATUS: ${text[d.prediction]}
+        </span>`;
+
+      document.getElementById("traffic").style.background =
+        `radial-gradient(circle, ${colors[d.prediction]} 0%, ${colors[d.prediction]}aa 70%, transparent)`;
+      document.getElementById("traffic").textContent = "●";
+
+      /* 🚨 ALERT SOUND + 📳 VIBRATION */
+      if (d.prediction === 3) {
+        document.getElementById("alertSound").play().catch(() => {});
+        if (navigator.vibrate) {
+          navigator.vibrate([500,300,500,300,500]);
+        }
+        document.getElementById("status").classList.add("alert");
+      } else {
+        document.getElementById("status").classList.remove("alert");
+      }
+
+      /* Summary */
+      history[d.prediction]++;
+      total++;
+      document.getElementById("summary").innerHTML = `
+        <div class="status-card active">
+          <h4>Active</h4>
+          <div class="percentage">${(history[0]/total*100).toFixed(1)}%</div>
+        </div>
+        <div class="status-card drowsy1">
+          <h4>Initial Drowsy</h4>
+          <div class="percentage">${(history[1]/total*100).toFixed(1)}%</div>
+        </div>
+        <div class="status-card drowsy2">
+          <h4>Heavy Drowsy</h4>
+          <div class="percentage">${(history[2]/total*100).toFixed(1)}%</div>
+        </div>
+        <div class="status-card unconscious">
+          <h4>Unconscious</h4>
+          <div class="percentage">${(history[3]/total*100).toFixed(1)}%</div>
+        </div>
+      `;
+    })
+    .catch(error => {
+      console.error('API Error:', error);
+      document.getElementById("status").innerHTML = "❌ API Connection Error";
+    });
+}
+
+// Start real-time updates every 1 second
+setInterval(updateDashboard, 1000);
+updateDashboard(); // Initial call
 </script>
 
 </body>
