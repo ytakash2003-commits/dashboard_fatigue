@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>EEG Fatigue Monitoring Dashboard</title>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+  body {
+    background-color: #0f172a;
+    color: white;
+    font-family: Arial, sans-serif;
+    text-align: center;
+  }
+  canvas {
+    max-width: 900px;
+    margin: 20px auto;
+  }
+  #traffic {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    margin: 15px auto;
+    background: gray;
+  }
+  #status {
+    font-size: 26px;
+    margin-top: 10px;
+  }
+  .alert {
+    animation: blink 1s infinite;
+  }
+  @keyframes blink {
+    50% { opacity: 0; }
+  }
+</style>
+</head>
+
+<body>
+
+<h2>EEG Fatigue Monitoring Dashboard</h2>
+
+<h1 id="status">Waiting for data...</h1>
+<div id="traffic"></div>
+
+<!-- Alert Sound -->
+<audio id="alertSound">
+  <source src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg" type="audio/ogg">
+</audio>
+
+<!-- Charts -->
+<canvas id="bandChart"></canvas>
+<canvas id="fatigueChart"></canvas>
+
+<!-- Summary -->
+<h3>Fatigue Summary (%)</h3>
+<div id="summary"></div>
+
+<script>
+/* 🔴 BACKEND URL */
+const API_URL = "https://ml-model-backend-j6co.onrender.com/latest";
+
+/* ---------- CHART SETUP ---------- */
+const bandChart = new Chart(document.getElementById("bandChart"), {
+  type: "line",
+  data: {
+    labels: [],
+    datasets: [
+      { label: "Alpha RMS", data: [], borderColor: "cyan" },
+      { label: "Beta RMS", data: [], borderColor: "yellow" },
+      { label: "Gamma RMS", data: [], borderColor: "orange" },
+      { label: "Delta RMS", data: [], borderColor: "lime" }
+    ]
+  }
+});
+
+const fatigueChart = new Chart(document.getElementById("fatigueChart"), {
+  type: "line",
+  data: {
+    labels: [],
+    datasets: [
+      { label: "Fatigue Level", data: [], borderColor: "red" }
+    ]
+  }
+});
+
+/* ---------- HISTORY TRACKING ---------- */
+let history = {0:0, 1:0, 2:0, 3:0};
+let total = 0;
+
+/* ---------- UPDATE DASHBOARD ---------- */
+function updateDashboard() {
+  fetch(API_URL)
+    .then(res => res.json())
+    .then(d => {
+      if (!d.time) return;
+
+      /* Update EEG Bands */
+      bandChart.data.labels.push("");
+      bandChart.data.datasets[0].data.push(d.alpha_rms);
+      bandChart.data.datasets[1].data.push(d.beta_rms);
+      bandChart.data.datasets[2].data.push(d.gamma_rms);
+      bandChart.data.datasets[3].data.push(d.delta_rms);
+      bandChart.update();
+
+      /* Update Fatigue Graph */
+      fatigueChart.data.labels.push("");
+      fatigueChart.data.datasets[0].data.push(d.prediction);
+      fatigueChart.update();
+
+      /* Status + Traffic Light */
+      const text = ["ACTIVE", "INITIAL DROWSY", "HEAVY DROWSY", "UNCONSCIOUS"];
+      const colors = ["green", "yellow", "orange", "red"];
+
+      document.getElementById("status").innerHTML =
+        `<span style="color:${colors[d.prediction]}">
+          FATIGUE STATUS: ${text[d.prediction]}
+        </span>`;
+
+      document.getElementById("traffic").style.background =
+        colors[d.prediction];
+
+      /* Alerts */
+      if (d.prediction === 3) {
+        document.getElementById("alertSound").play();
+        if (navigator.vibrate) {
+          navigator.vibrate([500,300,500,300,500]);
+        }
+        document.getElementById("status").classList.add("alert");
+      } else {
+        document.getElementById("status").classList.remove("alert");
+      }
+
+      /* Summary */
+      history[d.prediction]++;
+      total++;
+
+      document.getElementById("summary").innerHTML = `
+        Active: ${(history[0]/total*100).toFixed(1)}% <br>
+        Initial Drowsy: ${(history[1]/total*100).toFixed(1)}% <br>
+        Heavy Drowsy: ${(history[2]/total*100).toFixed(1)}% <br>
+        Unconscious: ${(history[3]/total*100).toFixed(1)}%
+      `;
+    });
+}
+
+/* 🔄 Refresh every second */
+setInterval(updateDashboard, 1000);
+</script>
+
+</body>
+</html>
